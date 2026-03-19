@@ -1,0 +1,54 @@
+
+mvp-1
+This is the test on terminal:
+python3 -c "from model import run_simulation; t, X, S = run_simulation(); print(f'Final biomass: {X[-1]:.2f} g/L, Final substrate: {S[-1]:.2f} g/L')"
+
+This is the result:
+Final biomass: 5.10 g/L, Final substrate: 0.00 g/L
+
+------
+
+mvp-2
+cd mvp-2
+streamlit run app.py
+press enter on the terminal streamlint onboarding then it will automatically open browser and with the charts and the parameter
+
+--------
+
+mvp-3
+change model.py
+
+on terminal (without streamlit run app.py):
+python3 -c "from model import run_zone_simulation; t, zones = run_zone_simulation(); print(f'Zone 1 final biomass: {zones[0][\"X\"][-1]:.2f}, Zone 3 final biomass: {zones[2][\"X\"][-1]:.2f}')"
+
+result:
+Zone 1 final biomass: 1.69, Zone 3 final biomass: 4.44
+
+That's the scale-up story right there.
+Zone 1 (top, low substrate) → 1.69 g/L. Zone 3 (impeller, high substrate) → 4.44 g/L. Same cells, same kinetics, different local environment — nearly 3x difference in final biomass. That's mixing heterogeneity hurting yield, demonstrated computationally.
+
+-----------
+
+mvp-4
+change the ui (app.py)
+streamlit run app.py
+shows scaleup zone model
+
+result: Yield loss due to mixing heterogeneity: 36.3% difference between best and worst zone
+
+------------
+
+mvp-5
+steramlit run app.py will now show three differents sceenarion, well mixed, moderate and poor and three different yeild loss on the bottom
+
+-----------
+
+mvp-6
+make the mvp to be more alighned with the prof slide, 
+
+to do for the next mvp (mvp-7)
+- Add 2D bioreactor cross-section visualization with zone colors
+- Fix substrate gradient so zone model total S0 equals ideal reactor S0
+
+------------------
+
