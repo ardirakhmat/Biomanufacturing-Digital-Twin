@@ -61,9 +61,14 @@ def cstr_zones_odes(t, y, mu_max, ks, yxs, yps, n_zones, exchange_rate):
     return dydt
 
 def run_zone_simulation(mu_max=MU_MAX, ks=KS, yxs=YXS, yps=YPS,
-                        X0=0.05, n_zones=3, exchange_rate=0.1, t_end=20.0):
-    # Ferulic acid gradient: low at top, high near impeller
-    S_init = np.linspace(0.3, 1.1, n_zones)
+                        X0=0.05, S0=1.1, n_zones=3, exchange_rate=0.1, t_end=20.0):
+    # Ferulic acid gradient: low at top, high near impeller.
+    # Weights sum to 1, scaled so total substrate = S0 * n_zones
+    # (each zone holds the same volume, average concentration = S0).
+    weights = np.linspace(0.3, 1.0, n_zones)
+    weights = weights / weights.sum()          # normalise → sum to 1
+    S_init = weights * S0 * n_zones            # each zone's concentration; mean = S0
+
     y0 = []
     for i in range(n_zones):
         y0.extend([X0, S_init[i], 0.0])
