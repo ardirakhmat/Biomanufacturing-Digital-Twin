@@ -1,6 +1,19 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import plotly.graph_objects as go
+import numpy as np
 from model import run_simulation, run_zone_simulation
+
+# ── Shared helpers ────────────────────────────────────────────────────────────
+def lerp_color(c1, c2, t):
+    r = int(c1[0] + (c2[0] - c1[0]) * t)
+    g = int(c1[1] + (c2[1] - c1[1]) * t)
+    b = int(c1[2] + (c2[2] - c1[2]) * t)
+    return f"rgb({r},{g},{b})"
+
+# Stratified zone colors (bottom→top): red, orange, green, light-blue, dark-blue
+STRAT_COLORS = [(214,39,40), (255,127,14), (44,160,44), (23,190,207), (31,119,180)]
+UNIFORM_COLOR = (42, 157, 143)
 
 st.set_page_config(page_title="Bioreactor Digital Twin", layout="wide")
 
@@ -183,62 +196,6 @@ section[data-testid="stSidebar"] { display: none !important; }
     else:
         homogeneity = max(0.0, 0.41 * (1 - min(loss - 25, 75) / 75))
 
-    def lerp_color(c1, c2, t):
-        r = int(c1[0] + (c2[0] - c1[0]) * t)
-        g = int(c1[1] + (c2[1] - c1[1]) * t)
-        b = int(c1[2] + (c2[2] - c1[2]) * t)
-        return f"rgb({r},{g},{b})"
-
-    strat_colors = [(31,119,180), (23,190,207), (44,160,44), (255,127,14), (214,39,40)]
-    uniform_color = (42, 157, 143)
-
-    cfd_zone_h = 60
-    cfd_vessel_x, cfd_vessel_y = 60, 30
-    cfd_vessel_w = 160
-    n_cfd = 5
-    cfd_vessel_h = cfd_zone_h * n_cfd
-
-    zone_rects_cfd = ""
-    for i in range(n_cfd):
-        ry = cfd_vessel_y + i * cfd_zone_h
-        color = lerp_color(strat_colors[i], uniform_color, homogeneity)
-        zone_rects_cfd += (
-            f'<rect x="{cfd_vessel_x}" y="{ry}" '
-            f'width="{cfd_vessel_w}" height="{cfd_zone_h}" '
-            f'fill="{color}" stroke="none"/>\n'
-        )
-
-    imp_cx = cfd_vessel_x + cfd_vessel_w / 2
-    imp_cy = cfd_vessel_y + cfd_vessel_h - 18
-    shaft_top = cfd_vessel_y + cfd_vessel_h * 0.5
-    cfd_impeller = (
-        f'<line x1="{imp_cx}" y1="{shaft_top}" x2="{imp_cx}" y2="{imp_cy}" stroke="#444" stroke-width="3"/>'
-        f'<rect x="{imp_cx-32}" y="{imp_cy-5}" width="28" height="10" rx="3" fill="#555" transform="rotate(-10,{imp_cx-18},{imp_cy})"/>'
-        f'<rect x="{imp_cx+4}" y="{imp_cy-5}" width="28" height="10" rx="3" fill="#555" transform="rotate(10,{imp_cx+18},{imp_cy})"/>'
-        f'<circle cx="{imp_cx}" cy="{imp_cy}" r="6" fill="#333"/>'
-    )
-    baffles = (
-        f'<rect x="{cfd_vessel_x}" y="{cfd_vessel_y+20}" width="8" height="{cfd_vessel_h-40}" fill="#666" opacity="0.7"/>'
-        f'<rect x="{cfd_vessel_x+cfd_vessel_w-8}" y="{cfd_vessel_y+20}" width="8" height="{cfd_vessel_h-40}" fill="#666" opacity="0.7"/>'
-    )
-    colorbar_x = cfd_vessel_x + cfd_vessel_w + 18
-    colorbar = (
-        f'<defs><linearGradient id="cbar" x1="0" y1="0" x2="0" y2="1">'
-        f'<stop offset="0%" stop-color="rgb(214,39,40)"/>'
-        f'<stop offset="50%" stop-color="rgb(255,127,14)"/>'
-        f'<stop offset="100%" stop-color="rgb(31,119,180)"/>'
-        f'</linearGradient></defs>'
-        f'<rect x="{colorbar_x}" y="{cfd_vessel_y}" width="14" height="{cfd_vessel_h}" fill="url(#cbar)" rx="3" stroke="#aaa" stroke-width="1"/>'
-        f'<text x="{colorbar_x+16}" y="{cfd_vessel_y+10}" font-size="10" fill="#333" font-family="monospace">High</text>'
-        f'<text x="{colorbar_x+16}" y="{cfd_vessel_y+cfd_vessel_h}" font-size="10" fill="#333" font-family="monospace">Low</text>'
-        f'<text x="{colorbar_x+16}" y="{cfd_vessel_y+cfd_vessel_h+14}" font-size="9" fill="#888" font-family="monospace">[S] g/L</text>'
-    )
-    _preset_label_map = {
-        "lab":        "~1 L Bioreactor",
-        "pilot":      "~100 L Bioreactor",
-        "industrial": "500 L+ Bioreactor",
-    }
-    vessel_title = _preset_label_map.get(st.session_state.get("preset"), "Bioreactor")
 
     if loss < 10:
         mix_label = "Well mixed"
@@ -250,18 +207,6 @@ section[data-testid="stSidebar"] { display: none !important; }
         mix_label = "Poor mixing"
         mix_bg, mix_border, mix_text = "#f8d7da", "#dc3545", "#721c24"
 
-    svg_total_h = cfd_vessel_y + cfd_vessel_h + 16
-    cfd_svg_html = (
-        f'<svg width="300" height="{svg_total_h}" xmlns="http://www.w3.org/2000/svg">'
-        f'<defs><clipPath id="cfd-clip"><rect x="{cfd_vessel_x}" y="{cfd_vessel_y}" width="{cfd_vessel_w}" height="{cfd_vessel_h}" rx="6"/></clipPath></defs>'
-        f'{colorbar}'
-        f'<g clip-path="url(#cfd-clip)">{zone_rects_cfd}</g>'
-        f'<rect x="{cfd_vessel_x}" y="{cfd_vessel_y}" width="{cfd_vessel_w}" height="{cfd_vessel_h}" fill="none" stroke="#555" stroke-width="2.5" rx="6"/>'
-        f'{baffles}'
-        f'{cfd_impeller}'
-        f'<text x="{cfd_vessel_x + cfd_vessel_w/2}" y="{cfd_vessel_y - 12}" text-anchor="middle" font-size="12" font-weight="700" fill="#333" font-family="monospace">{vessel_title}</text>'
-        f'</svg>'
-    )
     mix_banner = (
         f'<div style="background:{mix_bg};border-left:5px solid {mix_border};'
         f'padding:14px 16px;border-radius:6px;margin-top:8px">'
@@ -269,16 +214,214 @@ section[data-testid="stSidebar"] { display: none !important; }
         f'</div>'
     )
 
-    # ── Row 2: CFD concentration gradient (left) | yield loss (right) ────────
+    # ── Shared zone colors (used by both 3D bioreactor and line chart) ────────
+    # Zone 1 (top, z=8-10) = worst mixing = STRAT_COLORS[0]
+    # Zone 5 (bottom, z=0-2) = impeller, best mixing = STRAT_COLORS[4]
+    # bio3d_zone_colors[0] = bottom band (z=0-2) = Zone 5 color
+    # bio3d_zone_colors[4] = top band   (z=8-10) = Zone 1 color
+    bio3d_zone_colors = [
+        lerp_color(STRAT_COLORS[4 - i], UNIFORM_COLOR, homogeneity)
+        for i in range(5)
+    ]
+
+    # ── Row 2: CFD concentration gradient (left) | vanillin chart (right) ────
     col_cfd2, col_yield = st.columns([1, 1])
 
     with col_cfd2:
-        st.subheader("CFD — Concentration Gradient")
-        st.markdown(cfd_svg_html, unsafe_allow_html=True)
-        st.markdown(mix_banner, unsafe_allow_html=True)
+        st.subheader("3D Bioreactor Zone Model")
+
+        # ── 3D bioreactor geometry ────────────────────────────────────────────
+        b_height, b_radius = 10, 2.2
+        theta = np.linspace(0, 2 * np.pi, 50)
+        z_vals = np.linspace(0, b_height, 50)
+        theta_grid, z_grid = np.meshgrid(theta, z_vals)
+        x_grid = b_radius * np.cos(theta_grid)
+        y_grid = b_radius * np.sin(theta_grid)
+
+        r2 = np.linspace(0, b_radius, 40)
+        theta2 = np.linspace(0, 2 * np.pi, 50)
+        r_grid, theta2_grid = np.meshgrid(r2, theta2)
+        x_cap = r_grid * np.cos(theta2_grid)
+        y_cap = r_grid * np.sin(theta2_grid)
+
+        blade_len, blade_z = 1.45, 0.75
+        shaft_bottom, shaft_top_z = 0.55, 8.9
+
+        bio_zones = [
+            (bio3d_zone_colors[0], 0, 2),
+            (bio3d_zone_colors[1], 2, 4),
+            (bio3d_zone_colors[2], 4, 6),
+            (bio3d_zone_colors[3], 6, 8),
+            (bio3d_zone_colors[4], 8, 10),
+        ]
+
+        def make_bio3d_traces(rotation_deg):
+            traces = []
+            for color, z_min, z_max in bio_zones:
+                z_layer = np.where(
+                    (z_grid >= z_min) & (z_grid <= z_max), z_grid, np.nan
+                )
+                traces.append(go.Surface(
+                    x=x_grid, y=y_grid, z=z_layer,
+                    surfacecolor=np.ones_like(z_grid),
+                    colorscale=[[0, color], [1, color]],
+                    showscale=False, opacity=0.82, hoverinfo="skip"
+                ))
+            # Bottom cap
+            traces.append(go.Surface(
+                x=x_cap, y=y_cap, z=np.zeros_like(x_cap),
+                surfacecolor=np.ones_like(x_cap),
+                colorscale=[[0, bio3d_zone_colors[0]], [1, bio3d_zone_colors[0]]],
+                showscale=False, opacity=0.95, hoverinfo="skip"
+            ))
+            # Top cap
+            traces.append(go.Surface(
+                x=x_cap, y=y_cap, z=np.full_like(x_cap, b_height),
+                surfacecolor=np.ones_like(x_cap),
+                colorscale=[[0, bio3d_zone_colors[4]], [1, bio3d_zone_colors[4]]],
+                showscale=False, opacity=0.95, hoverinfo="skip"
+            ))
+            # Shaft
+            traces.append(go.Scatter3d(
+                x=[0, 0], y=[0, 0], z=[shaft_bottom, shaft_top_z],
+                mode="lines", line=dict(color="rgb(55,55,55)", width=14),
+                showlegend=False, hoverinfo="skip"
+            ))
+            # Hub
+            traces.append(go.Scatter3d(
+                x=[0], y=[0], z=[blade_z], mode="markers",
+                marker=dict(size=9, color="rgb(65,65,65)"),
+                showlegend=False, hoverinfo="skip"
+            ))
+            # Spinning impeller blades
+            for angle in np.array([0, 120, 240]) + rotation_deg:
+                rad = np.deg2rad(angle)
+                x1 = blade_len * np.cos(rad)
+                y1 = blade_len * np.sin(rad)
+                traces.append(go.Scatter3d(
+                    x=[0, x1], y=[0, y1], z=[blade_z, blade_z],
+                    mode="lines", line=dict(color="rgb(75,75,75)", width=18),
+                    showlegend=False, hoverinfo="skip"
+                ))
+                perp = rad + np.pi / 2
+                tip = 0.24
+                traces.append(go.Scatter3d(
+                    x=[x1 + tip*np.cos(perp), x1 - tip*np.cos(perp)],
+                    y=[y1 + tip*np.sin(perp), y1 - tip*np.sin(perp)],
+                    z=[blade_z, blade_z],
+                    mode="lines", line=dict(color="rgb(75,75,75)", width=14),
+                    showlegend=False, hoverinfo="skip"
+                ))
+            # Outline rings
+            for z_ring in [0, b_height]:
+                traces.append(go.Scatter3d(
+                    x=b_radius * np.cos(theta),
+                    y=b_radius * np.sin(theta),
+                    z=np.full_like(theta, z_ring),
+                    mode="lines", line=dict(color="rgb(90,90,90)", width=4),
+                    showlegend=False, hoverinfo="skip"
+                ))
+            return traces
+
+        bio3d_fig = go.Figure(data=make_bio3d_traces(0))
+        bio3d_fig.frames = [
+            go.Frame(data=make_bio3d_traces(rot), name=str(rot))
+            for rot in range(0, 360, 12)
+        ]
+        bio3d_fig.update_layout(
+            width=420, height=500,
+            margin=dict(l=0, r=0, t=20, b=0),
+            scene=dict(
+                xaxis=dict(visible=False),
+                yaxis=dict(visible=False),
+                zaxis=dict(visible=False),
+                aspectmode="manual",
+                aspectratio=dict(x=1, y=1, z=2.25),
+                camera=dict(eye=dict(x=1.8, y=1.55, z=1.45)),
+                bgcolor="white",
+            ),
+        )
+
+        plot_html = bio3d_fig.to_html(
+            include_plotlyjs="cdn", full_html=False, div_id="bioreactor3d"
+        )
+
+        combined_html = f"""
+        <div style="position:relative;width:420px;height:520px">
+          {plot_html}
+        </div>
+        <script>
+        document.addEventListener("DOMContentLoaded", function() {{
+            const gd = document.getElementById("bioreactor3d");
+            if (gd) {{
+                Plotly.animate(gd, null, {{
+                    frame: {{duration: 80, redraw: true}},
+                    transition: {{duration: 0}},
+                    mode: "immediate",
+                    fromcurrent: true
+                }});
+            }}
+        }});
+        </script>
+        """
+
+        components.html(combined_html, height=530, scrolling=False)
 
     with col_yield:
-        st.subheader("Scale-up Impact — Vanillin Yield")
+        st.subheader("Vanillin Production per Zone")
+        fig = go.Figure()
+        for i, zone in enumerate(zones):
+            fig.add_trace(go.Scatter(
+                x=t, y=zone['P'],
+                name=zone_names[i],
+                line=dict(color=bio3d_zone_colors[n_zones - 1 - i], width=2.5)
+            ))
+        fig.update_layout(
+            xaxis_title="Time (hr)",
+            yaxis_title="Vanillin (g/L)",
+            legend=dict(
+                orientation="h",
+                yanchor="top", y=-0.22,
+                xanchor="center", x=0.5,
+                font=dict(size=16),
+                title=dict(text="Zone", font=dict(size=16)),
+            ),
+            xaxis=dict(title_font=dict(size=19), tickfont=dict(size=18)),
+            yaxis=dict(title_font=dict(size=19), tickfont=dict(size=18)),
+            margin=dict(t=80, b=100),
+            height=530,
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ── Row 2b: banners side by side ─────────────────────────────────────────
+    col_mix_banner, col_yield_banner = st.columns([1, 1])
+
+    with col_mix_banner:
+        st.markdown(mix_banner, unsafe_allow_html=True)
+
+    with col_yield_banner:
+        if loss < 10:
+            bg, border, text_color = "#d4edda", "#28a745", "#155724"
+            msg = f"Yield loss: {loss:.1f}% — good mixing, zones nearly uniform."
+        elif loss < 25:
+            bg, border, text_color = "#fff3cd", "#ffc107", "#856404"
+            msg = f"Yield loss: {loss:.1f}% — moderate heterogeneity. Scale-up risk present."
+        else:
+            bg, border, text_color = "#f8d7da", "#dc3545", "#721c24"
+            msg = f"Yield loss: {loss:.1f}% — severe heterogeneity. Significant vanillin loss at scale."
+        st.markdown(
+            f'<div style="background:{bg};border-left:5px solid {border};'
+            f'padding:14px 16px;border-radius:6px">'
+            f'<span style="font-size:23px;font-weight:700;color:{text_color}">{msg}</span>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+
+
+    col_chart, col_hpc = st.columns([1, 1])
+
+    with col_chart:
+        st.subheader("Vanillin Yield")
 
         # Per-zone: one line each, name + value side by side
         zone_rows = "".join(
@@ -289,50 +432,6 @@ section[data-testid="stSidebar"] { display: none !important; }
             for i in range(n_zones)
         )
         st.markdown(zone_rows, unsafe_allow_html=True)
-
-        st.markdown("<div style='margin:10px 0'></div>", unsafe_allow_html=True)
-
-        # Large: yield loss banner with background color preserved
-        if loss < 10:
-            bg, border, text_color = "#d4edda", "#28a745", "#155724"
-            msg = f"Yield loss: {loss:.1f}% — good mixing, zones nearly uniform."
-        elif loss < 25:
-            bg, border, text_color = "#fff3cd", "#ffc107", "#856404"
-            msg = f"Yield loss: {loss:.1f}% — moderate heterogeneity. Scale-up risk present."
-        else:
-            bg, border, text_color = "#f8d7da", "#dc3545", "#721c24"
-            msg = f"Yield loss: {loss:.1f}% — severe heterogeneity. Significant vanillin loss at scale."
-
-        st.markdown(
-            f'<div style="background:{bg};border-left:5px solid {border};'
-            f'padding:14px 16px;border-radius:6px;margin-top:4px">'
-            f'<span style="font-size:23px;font-weight:700;color:{text_color}">{msg}</span>'
-            f'</div>',
-            unsafe_allow_html=True
-        )
-
-
-    col_chart, col_hpc = st.columns([1, 1])
-
-    with col_chart:
-        st.subheader("Vanillin Production per Zone")
-        fig = go.Figure()
-        for i, zone in enumerate(zones):
-            fig.add_trace(go.Scatter(
-                x=t, y=zone['P'],
-                name=zone_names[i],
-                line=dict(color=zone_colors_hex[i], width=2.5)
-            ))
-        fig.update_layout(
-            xaxis_title="Time (hr)",
-            yaxis_title="Vanillin (g/L)",
-            legend=dict(font=dict(size=19), title=dict(text="Zone", font=dict(size=19))),
-            xaxis=dict(title_font=dict(size=19), tickfont=dict(size=18)),
-            yaxis=dict(title_font=dict(size=19), tickfont=dict(size=18)),
-            margin=dict(t=20),
-            height=380,
-        )
-        st.plotly_chart(fig, use_container_width=True)
 
     with col_hpc:
         st.subheader("CFD Simulation — High Fidelity Run")
