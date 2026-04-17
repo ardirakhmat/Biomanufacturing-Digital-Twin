@@ -36,14 +36,20 @@ st.subheader("Vanillin Production from E. coli — Ferulic Acid Bioconversion")
 
 mode = st.radio("Mode", ["Ideal Reactor (Perfect Mixing)", "Scale-up"], horizontal=True)
 
-st.sidebar.header("Kinetic Parameters")
-mu_max = st.sidebar.slider("Max growth rate µmax (1/hr)", 0.05, 0.5, 0.15, 0.01)
-ks = st.sidebar.slider("Saturation constant Ks (g/L)", 0.01, 0.5, 0.05, 0.01)
-yxs = st.sidebar.slider("Biomass yield Yxs (g/g)", 0.1, 0.8, 0.4, 0.05)
-yps = st.sidebar.slider("Vanillin yield Yps (g/g)", 0.1, 1.0, 0.7, 0.05)
-X0 = st.sidebar.slider("Initial biomass X0 (g/L)", 0.01, 0.2, 0.05, 0.01)
-S0 = st.sidebar.slider("Initial ferulic acid S0 (g/L)", 0.5, 3.0, 1.1, 0.1)
-t_end = st.sidebar.slider("Simulation time (hr)", 5.0, 40.0, 20.0, 1.0)
+# ── Kinetic parameters: only shown in Ideal Reactor mode ─────────────────────
+if mode == "Ideal Reactor (Perfect Mixing)":
+    st.sidebar.header("Kinetic Parameters")
+    mu_max = st.sidebar.slider("Max growth rate µmax (1/hr)", 0.05, 0.5, 0.15, 0.01)
+    ks = st.sidebar.slider("Saturation constant Ks (g/L)", 0.01, 0.5, 0.05, 0.01)
+    yxs = st.sidebar.slider("Biomass yield Yxs (g/g)", 0.1, 0.8, 0.4, 0.05)
+    yps = st.sidebar.slider("Vanillin yield Yps (g/g)", 0.1, 1.0, 0.7, 0.05)
+    X0 = st.sidebar.slider("Initial biomass X0 (g/L)", 0.01, 0.2, 0.05, 0.01)
+    S0 = st.sidebar.slider("Initial ferulic acid S0 (g/L)", 0.5, 3.0, 1.1, 0.1)
+    t_end = st.sidebar.slider("Simulation time (hr)", 5.0, 40.0, 20.0, 1.0)
+else:
+    # Fixed kinetic defaults used by Scale-up mode
+    mu_max, ks, yxs, yps = 0.15, 0.05, 0.4, 0.7
+    X0, S0, t_end = 0.05, 1.1, 20.0
 
 if mode == "Ideal Reactor (Perfect Mixing)":
     st.info("Single well-mixed bioreactor. E. coli converts ferulic acid (substrate) into vanillin (product) while growing.")
@@ -137,8 +143,7 @@ section[data-testid="stSidebar"] { display: none !important; }
             st.rerun()
 
     st.sidebar.header("Zone Parameters")
-    n_zones = st.sidebar.slider("Number of zones", 2, 5,
-                                 st.session_state.get("n_zones", 3), 1)
+    n_zones = 5  # Fixed at 5 zones
 
     st.sidebar.markdown("**Mixing intensity (exchange rate)**")
     if "exchange_rate" not in st.session_state:
